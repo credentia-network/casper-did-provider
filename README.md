@@ -1,5 +1,5 @@
-# casper-did-resolver
-Veramo DID Resolver
+# casper-did-provider
+Veramo DID Provider
 
 ## Build
 ```
