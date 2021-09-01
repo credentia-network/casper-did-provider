@@ -1,0 +1,22 @@
+{
+	"compilerOptions": {
+		"declaration": true,
+		"outDir": "./lib",
+		"emitDecoratorMetadata": true,
+		"experimentalDecorators": true,
+		"lib": [
+			"es2018",
+			"dom"
+		],
+		"module": "CommonJS",
+		"moduleResolution": "node",
+		"sourceMap": true,
+		"target": "es2015",
+		"noImplicitAny": false,
+		"strictNullChecks": false,
+		"strict": true
+	},
+	"include": [
+		"src/**/*"
+	]
+}

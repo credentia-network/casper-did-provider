@@ -1,2 +1,13 @@
-# casper-did-provider
-Veramo DID Provider
+# casper-did-resolver
+Veramo DID Resolver
+
+## Build
+```
+npm run build
+```
+
+## Test
+
+```
+npm run test
+```

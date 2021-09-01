@@ -1,0 +1,38 @@
+{
+  "name": "casper-did-reesolver",
+  "version": "1.0.0",
+  "source": "src/index.ts",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "scripts": {
+    "build": "rimraf -rf lib && tsc",
+    "test": "node tests/test.js"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "27.0.1",
+    "@veramo/cli": "2.1.1",
+    "cp-cli": "2.0.0",
+    "jest": "27.0.6",
+    "rimraf": "3.0.2",
+    "ts-jest": "27.0.5",
+    "typeorm": "0.2.37",
+    "typescript": "4.3.5"
+  },
+  "files": [
+    "build/**/*",
+    "src/**/*",
+    "README.md",
+    "plugin.schema.json",
+    "LICENSE"
+  ],
+  "dependencies": {
+    "@veramo/core": "^2.0.0",
+    "@veramo/did-manager": "^2.0.0",
+    "@veramo/did-resolver": "2.1.0",
+    "@veramo/key-manager": "^2.0.0",
+    "casper-js-sdk": "2.5.0",
+    "did-resolver": "3.1.0",
+    "sqlite3": "5.0.2"
+  }
+}
