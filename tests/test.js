@@ -30,7 +30,7 @@ const dbConnection = createConnection({
 const agent = core.createAgent({
     plugins: [
         new key_manager.KeyManager({
-            store: new data_store.KeyStore(dbConnection),
+            store: new data_store.MemoryKeyStore(),
             kms: {
                 local: new kms_local.KeyManagementSystem(),
             },
