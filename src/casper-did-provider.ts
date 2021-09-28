@@ -33,7 +33,7 @@ export class CasperDidProvider extends AbstractIdentifierProvider {
         const key = await context.agent.keyManagerCreate({ kms: kms || this.defaultKms, type: keyType })
 
         const identifier: Omit<IIdentifier, 'provider'> = {
-            did: 'did:casper:' + this.providerOptions.network + ':' + this.providerOptions.identityKey.accountHex,
+            did: 'did:casper:' + this.providerOptions.network + ':' + this.providerOptions.identityKey.accountHex(),
             controllerKeyId: key.kid,
             keys: [key],
             services: [],
