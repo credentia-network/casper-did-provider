@@ -1,6 +1,6 @@
 # casper-did-provider
 This project implements Casper DID Provider for [Veramo](https://veramo.io/)
-## Installation
+## How to use
 
 Add the following lines into dependencies section of the package.json
 
@@ -13,8 +13,6 @@ Add the following lines into dependencies section of the package.json
     ...................
   },
 ```
-## Usage
-
 For Veramo basics please follow the documentation and samples [here](https://veramo.io/docs/basics/introduction)
 
 ### Using Casper DID Provider with React
