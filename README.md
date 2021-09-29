@@ -4,9 +4,7 @@ This project implements Casper DID Provider for [Veramo](https://veramo.io/)
 
 Add the following lines into dependencies section of the package.json
 
-```
-
-{
+```json
   "dependencies": {
     ...................
     "casper-did-provider": "git+https://github.com//credentia-network/casper-did-provider.git",
@@ -23,7 +21,7 @@ For Veramo basics please follow the documentation and samples [here](https://ver
 
 Please use the following code snippet to configure Casper DID Provider within the createAgent function from `@veramo/core`
 
-``ts
+```ts
 const PUBLIC_KEY = Keys.Ed25519.readBase64WithPEM('MCowBQYDK2VwAyEANUSxkqzpKbbhYVMo0bP3nVe+gen4jFp06Ki5u6cIATk=');
 const PRIVATE_KEY = Keys.Ed25519.readBase64WithPEM('MC4CAQAwBQYDK2VwBCIEIAdjynMSLimFalVdB51TI6wGlwQKaI8PwdsG55t2qMZM');
 const RPC_URL = '<CASPER_NODE_RPC_URL>';
@@ -70,5 +68,5 @@ this.agent = createAgent({
 ```
 
 Casper public blockchain nodes RPC can be found here:
-For Testnet: [https://testnet.cspr.live/tools/peers]
-For Mainnet: [https://cspr.live/tools/peers]
+For Testnet: [https://testnet.cspr.live/tools/peers](https://testnet.cspr.live/tools/peers)
+For Mainnet: [https://cspr.live/tools/peers](https://cspr.live/tools/peers)
