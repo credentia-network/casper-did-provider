@@ -30,9 +30,9 @@ const dbConnection = createConnection({
 const agent = core.createAgent({
     plugins: [
         new key_manager.KeyManager({
-            store: new data_store.KeyStore(dbConnection),
+            store: new key_manager.MemoryKeyStore(),
             kms: {
-                local: new kms_local.KeyManagementSystem(),
+                local: new kms_local.KeyManagementSystem(new key_manager.MemoryPrivateKeyStore()),
             },
         }),
         new did_manager.DIDManager({
@@ -43,7 +43,7 @@ const agent = core.createAgent({
                     contract: 'CasperDIDRegistry9',
                     contractKey,
                     identityKey,
-                    rpcUrl: 'http://164.90.198.193:7777/rpc',
+                    rpcUrl: 'http://144.76.97.151:7777/rpc',
                     defaultKms: 'local',
                     gasPrice: 10,
                     network: 'casper-test',
