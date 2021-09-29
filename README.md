@@ -68,5 +68,5 @@ this.agent = createAgent({
 ```
 
 Casper public blockchain nodes RPC can be found here:
-For Testnet: [https://testnet.cspr.live/tools/peers](https://testnet.cspr.live/tools/peers)
-For Mainnet: [https://cspr.live/tools/peers](https://cspr.live/tools/peers)
+ - For Testnet: [https://testnet.cspr.live/tools/peers](https://testnet.cspr.live/tools/peers)
+ - For Mainnet: [https://cspr.live/tools/peers](https://cspr.live/tools/peers)
