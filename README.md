@@ -1,5 +1,7 @@
 # casper-did-provider
 This project implements Casper DID Provider for [Veramo](https://veramo.io/)
+
+Initial project structure is derived from [Veramo did-provider-ethr](https://github.com/uport-project/veramo/tree/next/packages/did-provider-ethr)
 ## How to use
 
 Add the following lines into dependencies section of the package.json
