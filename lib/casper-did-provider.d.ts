@@ -1,13 +1,12 @@
 import { IAgentContext, IIdentifier, IKey, IKeyManager, IService } from "@veramo/core";
 import { AbstractIdentifierProvider } from "@veramo/did-manager";
-import { AsymmetricKey } from "casper-js-sdk/dist/lib/Keys";
+import { CasperClient, CasperServiceByJsonRPC } from "casper-js-sdk";
+import { ICasperSignerAdapter } from "./casper-signer-adapter";
 declare type IContext = IAgentContext<IKeyManager>;
 export interface IdentifierProviderOptions {
     defaultKms: string;
-    identityKey: AsymmetricKey;
-    rpcUrl: string;
+    identityKeyHex: string;
     network: string;
-    contractKey: AsymmetricKey;
     contract: string;
     gasPrice: number;
     gasPayment: number;
@@ -15,8 +14,11 @@ export interface IdentifierProviderOptions {
 }
 export declare class CasperDidProvider extends AbstractIdentifierProvider {
     private providerOptions;
+    private signerAdapter;
+    private client;
+    private clientRpc;
     private defaultKms;
-    constructor(providerOptions: IdentifierProviderOptions);
+    constructor(providerOptions: IdentifierProviderOptions, signerAdapter: ICasperSignerAdapter, client: CasperClient, clientRpc: CasperServiceByJsonRPC);
     createIdentifier({ kms }: {
         kms?: string;
     }, context: IContext): Promise<Omit<IIdentifier, 'provider'>>;
@@ -41,7 +43,12 @@ export declare class CasperDidProvider extends AbstractIdentifierProvider {
         id: string;
         options?: any;
     }, context: IContext): Promise<any>;
-    private getAccountInfo;
-    private getAccountNamedKeyValue;
+    private buildKey;
+    private readKey;
+    private readAttributesLength;
+    private deployKey;
+    private revokeAttribute;
+    private getIdentityKeyHash;
+    private getIdentityKey;
 }
 export {};

@@ -1,16 +1,14 @@
 import { IAgentContext, IIdentifier, IKey, IKeyManager, IService } from "@veramo/core";
 import { AbstractIdentifierProvider } from "@veramo/did-manager";
-import { CasperClient, CasperServiceByJsonRPC, CLValueBuilder, DeployUtil, RuntimeArgs } from "casper-js-sdk";
-import { AsymmetricKey } from "casper-js-sdk/dist/lib/Keys";
+import { CasperClient, CasperServiceByJsonRPC, CLPublicKey, CLValueBuilder, decodeBase16, DeployUtil, Keys, RuntimeArgs } from "casper-js-sdk";
+import { ICasperSignerAdapter } from "./casper-signer-adapter";
 
 type IContext = IAgentContext<IKeyManager>;
 
 export interface IdentifierProviderOptions {
     defaultKms: string;
-    identityKey: AsymmetricKey;
-    rpcUrl: string;
+    identityKeyHex: string;
     network: string;
-    contractKey: AsymmetricKey;
     contract: string;
     gasPrice: number;
     gasPayment: number;
@@ -20,7 +18,12 @@ export interface IdentifierProviderOptions {
 export class CasperDidProvider extends AbstractIdentifierProvider {
     private defaultKms: string
 
-    constructor(private providerOptions: IdentifierProviderOptions) {
+    constructor(
+        private providerOptions: IdentifierProviderOptions,
+        private signerAdapter: ICasperSignerAdapter,
+        private client: CasperClient,
+        private clientRpc: CasperServiceByJsonRPC
+    ) {
         super()
         this.defaultKms = providerOptions.defaultKms;
     }
@@ -33,13 +36,13 @@ export class CasperDidProvider extends AbstractIdentifierProvider {
         const key = await context.agent.keyManagerCreate({ kms: kms || this.defaultKms, type: keyType })
 
         const identifier: Omit<IIdentifier, 'provider'> = {
-            did: 'did:casper:' + this.providerOptions.network + ':' + this.providerOptions.identityKey.accountHex(),
+            did: 'did:casper:' + this.providerOptions.network + ':' + this.providerOptions.identityKeyHex,
             controllerKeyId: key.kid,
             keys: [key],
             services: [],
         }
-        console.log('createIdentifier');
-        console.log(identifier.did);
+        // console.log('createIdentifier');
+        // console.log(identifier.did);
         return identifier
     }
 
@@ -54,124 +57,143 @@ export class CasperDidProvider extends AbstractIdentifierProvider {
         { identifier, key, options }: { identifier: IIdentifier; key: IKey; options?: any },
         context: IContext
     ): Promise<any> {
-        const client = new CasperClient(this.providerOptions.rpcUrl);
-        const clientRpc = new CasperServiceByJsonRPC(this.providerOptions.rpcUrl);
         const blockHashBase16 = '';
-        const stateRootHash = await clientRpc.getStateRootHash(blockHashBase16);
-        const contractHash = await this.getAccountNamedKeyValue(clientRpc, stateRootHash, this.providerOptions.contractKey, this.providerOptions.contract);
-        if (!contractHash) {
-            throw new Error(`Key '${this.providerOptions.contract}' couldn't be found.`);
-        }
-        const contractHashAsByteArray = Buffer.from(contractHash.slice(5), "hex");
+        const stateRootHash = await this.clientRpc.getStateRootHash(blockHashBase16);
+        const attributeKey = `did/pub/${key.kid}`;
+        const attributeValue = key.publicKeyHex;
+        const expirationTimestamp = options.expire;
 
-        const name = key.kid;
-        const value = (key.publicKeyHex.startsWith('0x') ? '' : '0x') + key.publicKeyHex;
+        await this.revokeAttribute(attributeKey, stateRootHash);
 
-        const deployMessage = DeployUtil.makeDeploy(
-            new DeployUtil.DeployParams(
-                this.providerOptions.contractKey.publicKey,
-                this.providerOptions.network,
-                this.providerOptions.gasPrice,
-                this.providerOptions.ttl
-            ),
-            DeployUtil.ExecutableDeployItem.newStoredContractByHash(
-                contractHashAsByteArray,
-                "setAttribute",
-                RuntimeArgs.fromMap({
-                    identity: CLValueBuilder.byteArray(this.providerOptions.identityKey.accountHash()),
-                    name: CLValueBuilder.string(name),
-                    value: CLValueBuilder.string(value),
-                    validity: CLValueBuilder.u64(1337),
-                })
-            ),
-            DeployUtil.standardPayment(this.providerOptions.gasPayment)
-        );
+        const accountHash = this.getIdentityKeyHash(this.providerOptions.identityKeyHex);
 
-        const signedDeployMessage = client.signDeploy(deployMessage, this.providerOptions.contractKey);
-        console.log("Signed deploy:");
-        console.log(signedDeployMessage);
+        const runtimeArgs = RuntimeArgs.fromMap({
+            identity: CLValueBuilder.byteArray(accountHash),
+            attributeKey: CLValueBuilder.string(attributeKey),
+            attributeValue: CLValueBuilder.string(attributeValue),
+            expire: CLValueBuilder.u64(expirationTimestamp),
+        })
 
-        const deployMessageResult = await client.putDeploy(signedDeployMessage);
-        console.log("Deploy result:");
-        console.log(deployMessageResult);
-
-        return { success: true }
+        await this.deployKey('setAttribute', runtimeArgs);
     }
 
     async addService(
         { identifier, service, options }: { identifier: IIdentifier; service: IService; options?: any },
         context: IContext
     ): Promise<any> {
-        const client = new CasperClient(this.providerOptions.rpcUrl);
-        const clientRpc = new CasperServiceByJsonRPC(this.providerOptions.rpcUrl);
         const blockHashBase16 = '';
-        const stateRootHash = await clientRpc.getStateRootHash(blockHashBase16);
-        const contractHash = await this.getAccountNamedKeyValue(clientRpc, stateRootHash, this.providerOptions.contractKey, this.providerOptions.contract);
-        if (!contractHash) {
-            throw new Error(`Key '${this.providerOptions.contract}' couldn't be found.`);
+        const stateRootHash = await this.clientRpc.getStateRootHash(blockHashBase16);
+        const attributeKey = `did/svc/${service.id}`;
+        const attributeValue = service.serviceEndpoint;
+        const expirationTimestamp = options.expire;
+
+        await this.revokeAttribute(attributeKey, stateRootHash);
+
+        const accountHash = this.getIdentityKeyHash(this.providerOptions.identityKeyHex);
+
+        const runtimeArgs = RuntimeArgs.fromMap({
+            identity: CLValueBuilder.byteArray(accountHash),
+            attributeKey: CLValueBuilder.string(attributeKey),
+            attributeValue: CLValueBuilder.string(attributeValue),
+            expire: CLValueBuilder.u64(expirationTimestamp),
+        })
+
+        await this.deployKey('setAttribute', runtimeArgs);
+    }
+
+    async removeKey(args: { identifier: IIdentifier; kid: string; options?: any }, context: IContext): Promise<any> {
+        const blockHashBase16 = '';
+        const stateRootHash = await this.clientRpc.getStateRootHash(blockHashBase16);
+        await this.revokeAttribute(`did/pub/${args.kid}`, stateRootHash);
+    }
+
+    async removeService(args: { identifier: IIdentifier; id: string; options?: any }, context: IContext): Promise<any> {
+        const blockHashBase16 = '';
+        const stateRootHash = await this.clientRpc.getStateRootHash(blockHashBase16);
+        await this.revokeAttribute(`did/svc/${args.id}`, stateRootHash);
+    }
+
+    private buildKey(suffix?: string) {
+        const key = this.getIdentityKeyHash(this.providerOptions.identityKeyHex);
+        return `${Buffer.from(key).toString('hex')}${suffix || ''}`;
+    }
+
+    private async readKey<T>(key: string, clientRpc: CasperServiceByJsonRPC, stateRootHash: string): Promise<T> {
+        let result = await clientRpc.getBlockState(stateRootHash, this.providerOptions.contract, [key]);
+        return result?.CLValue?.data;
+    }
+
+    private async readAttributesLength(clientRpc: CasperServiceByJsonRPC, stateRootHash: string) {
+        const key = this.buildKey('_attributeLength');
+        try {
+            let result = await this.readKey(key, clientRpc, stateRootHash);
+            return +result || 0;
+        } catch (e) {
+            return 0;
         }
-        const contractHashAsByteArray = Buffer.from(contractHash.slice(5), "hex");
+    }
 
-        const delegate = Buffer.from(service.id, "hex");
-        const delegateType = Buffer.from(service.type, "hex");
+    private async deployKey(entryPoint: string, runtimeArgs: RuntimeArgs) {
+        const contractHashAsByteArray = Buffer.from(this.providerOptions.contract.slice(5), "hex");
+        const publicKey = this.getIdentityKey(this.providerOptions.identityKeyHex);
 
-        const deployMessage = DeployUtil.makeDeploy(
+        const deploy = DeployUtil.makeDeploy(
             new DeployUtil.DeployParams(
-                this.providerOptions.contractKey.publicKey,
+                CLPublicKey.fromEd25519(publicKey),
                 this.providerOptions.network,
                 this.providerOptions.gasPrice,
                 this.providerOptions.ttl
             ),
             DeployUtil.ExecutableDeployItem.newStoredContractByHash(
                 contractHashAsByteArray,
-                "addDelegate",
-                RuntimeArgs.fromMap({
-                    identity: CLValueBuilder.byteArray(this.providerOptions.identityKey.accountHash()),
-                    delegateType: CLValueBuilder.byteArray(delegateType),
-                    delegate: CLValueBuilder.byteArray(delegate),
-                    validity: CLValueBuilder.u64(1337),
-                })
+                entryPoint,
+                runtimeArgs
             ),
-            DeployUtil.standardPayment(this.providerOptions.gasPrice)
+            DeployUtil.standardPayment(this.providerOptions.gasPayment)
         );
 
-        const signedDeployMessage = client.signDeploy(deployMessage, this.providerOptions.contractKey);
-        console.log("Signed deploy:");
-        console.log(signedDeployMessage);
+        const signedDeploy = await this.signerAdapter.sign(deploy);
+        const deployResult = await this.client.putDeploy(signedDeploy);
 
-        const deployMessageResult = await client.putDeploy(signedDeployMessage);
-        console.log("Deploy result:");
-        console.log(deployMessageResult);
-
-        return { success: true }
+        console.log("Deploy result");
+        console.log(deployResult);
     }
 
-    async removeKey(args: { identifier: IIdentifier; kid: string; options?: any }, context: IContext): Promise<any> {
-        throw Error('IdentityProvider removeKey not implemented')
-        return { success: true }
-    }
+    private async revokeAttribute(attribute: string, stateRootHash: string) {
+        const attributesLength = await this.readAttributesLength(this.clientRpc, stateRootHash);
 
-    async removeService(args: { identifier: IIdentifier; id: string; options?: any }, context: IContext): Promise<any> {
-        throw Error('IdentityProvider removeService not implemented')
-        return { success: true }
-    }
+        if (attributesLength) {
+            const arr = new Array(attributesLength).fill(0).map((_, i) => i);
 
-    private async getAccountInfo(client: CasperServiceByJsonRPC, stateRootHash: string, keyPair: AsymmetricKey) {
-        const accountHash = Buffer.from(keyPair.accountHash()).toString('hex');
-        const storedValue = await client.getBlockState(
-            stateRootHash,
-            `account-hash-${accountHash}`,
-            []
-        )
-        return storedValue.Account;
-    };
+            for (const index of arr) {
+                const key = this.buildKey(`_attribute_${index}`);
+                const result = await this.readKey<any[]>(key, this.clientRpc, stateRootHash);
 
-    private async getAccountNamedKeyValue(client: CasperServiceByJsonRPC, stateRootHash: string, keyPair: AsymmetricKey, namedKey: string) {
-        const accountInfo = await this.getAccountInfo(client, stateRootHash, keyPair);
-        if (!accountInfo) {
-            throw new Error('IdentifierProvider.getAccountInfo returned an undefined result.');
+                const [name] = result.map(t => t.data.toString());
+                if ((name || '').toLowerCase() == attribute) {
+                    const runtimeArgs = RuntimeArgs.fromMap({
+                        identity: CLValueBuilder.byteArray(this.getIdentityKeyHash(this.providerOptions.identityKeyHex)),
+                        index: CLValueBuilder.u64(index),
+                    })
+                    await this.deployKey('revokeAttribute', runtimeArgs);
+                }
+            }
         }
-        const res = accountInfo.namedKeys.find(i => i.name === namedKey);
-        return res!.key;
+    }
+
+    private getIdentityKeyHash(identityKeyHex: string): Uint8Array {
+        if (identityKeyHex.length > 64) {
+            const algorithm = +identityKeyHex.substr(0, 2);
+            const arr = decodeBase16(identityKeyHex.substr(2));
+            return algorithm == 2 ? Keys.Secp256K1.accountHash(arr) : Keys.Ed25519.accountHash(arr);
+        }
+        return Keys.Ed25519.accountHash(decodeBase16(identityKeyHex));
+    }
+
+    private getIdentityKey(identityKeyHex: string): Uint8Array {
+        if (identityKeyHex.length > 64) {
+            return decodeBase16(identityKeyHex.substr(2));
+        }
+        return decodeBase16(identityKeyHex);
     }
 }
